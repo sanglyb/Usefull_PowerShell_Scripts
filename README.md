@@ -2,7 +2,7 @@
 
 This repository contains PowerShell scripts that I find useful.
 
-## `get-calendar-meetings-info.ps1`
+## `Exchange/get-calendar-meetings-info.ps1`
 
 This script collects statistics about user calendar meetings, including:
 
