@@ -13,7 +13,7 @@ This script collects statistics about user calendar meetings, including:
 - Additionally, for future enhancements, the script retrieves the meeting ID generated when scheduling through Skype for Business (SfB)
 
 ### Requirements
-
+- The script must be run from the **Exchange Management Shell**.
 - Since the script uses EWS, the executing user must have either:
   - Explicit permissions to the target mailboxes (which the script checks), **or**
   - The **Impersonation** role assigned  
