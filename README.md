@@ -18,7 +18,4 @@ This script collects statistics about user calendar meetings, including:
   - Explicit permissions to the target mailboxes (which the script checks), **or**
   - The **Impersonation** role assigned  
   A reminder on how to assign the Impersonation role is provided at the beginning of the script.
-
-### Input
-
 - The list of users to analyze must be provided in a file named `users.txt`, using a simple line-by-line format.
