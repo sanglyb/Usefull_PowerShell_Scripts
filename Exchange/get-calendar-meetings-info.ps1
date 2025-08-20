@@ -6,7 +6,7 @@ function Get-AllItemsFromFolder {
         [Microsoft.Exchange.WebServices.Data.FolderId]   $FolderId,
         [Microsoft.Exchange.WebServices.Data.SearchFilter] $Filter = $null,
         [DateTime] $StartDate = (Get-Date).AddDays(-30),
-        [DateTime] $EndDate   = (Get-Date).AddDays(30)
+        [DateTime] $EndDate   = (Get-Date).AddDays(1)
     )
 
     $items = @()
