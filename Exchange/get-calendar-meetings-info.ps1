@@ -4,31 +4,52 @@
 function Get-AllItemsFromFolder {
     param(
         [Microsoft.Exchange.WebServices.Data.FolderId]   $FolderId,
-        [Microsoft.Exchange.WebServices.Data.SearchFilter] $Filter = $null
+        [Microsoft.Exchange.WebServices.Data.SearchFilter] $Filter = $null,
+        [DateTime] $StartDate = (Get-Date).AddDays(-30),
+        [DateTime] $EndDate   = (Get-Date).AddDays(30)
     )
-    $offset    = 0
+
+    $items = @()
+    $offset = 0
+    $pageSize = 100
     $moreItems = $true
-    $items     = @()
+	
+    if ($FolderId.FolderName -eq [Microsoft.Exchange.WebServices.Data.WellKnownFolderName]::Calendar) {
+		$interval = 14 
+		while ($currentStart -lt $EndDate) {
+			$currentEnd = $currentStart.AddDays($interval)
+			if ($currentEnd -gt $EndDate) { $currentEnd = $EndDate }
+				write-host $currentStart $currentend
+				$calendarView = New-Object Microsoft.Exchange.WebServices.Data.CalendarView($currentStart, $currentEnd, $pageSize)
+				$find = $service.FindAppointments($FolderId, $calendarView)
+			if ($find.Items.Count -gt 0) {
+				$service.LoadPropertiesForItems($find.Items, $propertySet)
+				$items += $find.Items
+			}
+			$currentStart = $currentEnd
+			Start-Sleep -Milliseconds 100
+		}
+	}	
+    else {        
+        do {
+            if ($Filter) {
+                $view = New-Object Microsoft.Exchange.WebServices.Data.ItemView($pageSize, $offset)
+                $find = $service.FindItems($FolderId, $Filter, $view)
+            } else {
+                $view = New-Object Microsoft.Exchange.WebServices.Data.ItemView($pageSize, $offset)
+                $find = $service.FindItems($FolderId, $view)
+            }
 
-    while ($moreItems) {
-        if ($Filter) {
-            $view = New-Object Microsoft.Exchange.WebServices.Data.ItemView($pageSize, $offset)
-            $find = $service.FindItems($FolderId, $Filter, $view)
-        } else {
-            $view = New-Object Microsoft.Exchange.WebServices.Data.ItemView($pageSize, $offset)
-            $find = $service.FindItems($FolderId, $view)
-        }
-
-        if ($find.Items.Count -gt 0) {
-            $service.LoadPropertiesForItems($find.Items, $propertySet)
-            $items += $find.Items
-        }
-
-        $moreItems = $find.MoreAvailable
-        if ($moreItems) {
-            $offset += $pageSize
-            Start-Sleep -Milliseconds 500
-        }
+            if ($find.Items.Count -gt 0) {
+                $service.LoadPropertiesForItems($find.Items, $propertySet)
+                $items += $find.Items
+            }
+            $moreItems = $find.MoreAvailable
+            if ($moreItems) {
+                $offset += $pageSize
+                Start-Sleep -Milliseconds 200
+            }
+        } while ($moreItems)
     }
 
     return $items
