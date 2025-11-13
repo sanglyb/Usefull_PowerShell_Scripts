@@ -6,7 +6,7 @@ function Get-AllItemsFromFolder {
         [Microsoft.Exchange.WebServices.Data.FolderId]   $FolderId,
         [Microsoft.Exchange.WebServices.Data.SearchFilter] $Filter = $null,
         [DateTime] $StartDate = (Get-Date).AddDays(-30),
-        [DateTime] $EndDate   = (Get-Date).AddDays(1)
+        [DateTime] $EndDate   = (Get-Date).AddDays(30)
     )
 
     $items = @()
@@ -99,130 +99,136 @@ function Create-MeetingObject {
         OptionalAttendees  = ($Item.OptionalAttendees | ForEach-Object { $_.Address }) -join '; '
     }
 }
-$users=Get-Content ".\users.txt"
+
+$users=Get-Content "c:\scripts\emails_list.txt"
+$results = @()
 foreach ($user in $users){
-#$targetMailbox = "nmel@yourorg.com"
-$targetMailbox=$user.trim()
-$startDate = ((get-date).AddDays(-6))
+if (Get-Mailbox $user -erroraction silentlycontinue) { 
+
+# $targetMailbox = "nmel@yourorg.com"
+$targetMailbox = $user
+
+
+$startDate = ((get-date).AddDays(-35))
 $endDate = ((get-date).adddays(1))
 $regex = [regex]'https://meet\.yourorg\.com/[^\s\?<>]+'
 $server        = "172.21.38.152"
 $pageSize      = 100
 
-(if get-mailbox $targetMailbox){
+								
 
-	#обход ошибок сертификата
-	[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
-	[System.Net.ServicePointManager]::ServerCertificateValidationCallback = {
-		param($sender, $certificate, $chain, $sslPolicyErrors)
-		return $true
+#обход ошибок сертификата
+[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+[System.Net.ServicePointManager]::ServerCertificateValidationCallback = {
+    param($sender, $certificate, $chain, $sslPolicyErrors)
+    return $true
+}
+
+#user info
+$samName=(get-mailbox $targetMailbox -erroraction silentlycontinue).samaccountname
+if ($samName){
+	$user=get-aduser $samName -properties title
+    if ($null -ne $user.name){
+		$username=$user.name
+	} else {
+		$username=$targetMailbox
 	}
+	$title=$user.title
+}
 
-	#user info
-	$samName=(get-mailbox $targetMailbox -erroraction silentlycontinue).samaccountname
-	if ($samName){
-		$user=get-aduser $samName -properties title
-		if ($null -ne $user.name){
-			$username=$user.name
-		} else {
-			$username=$targetMailbox
-		}
-		$title=$user.title
-	}
+#$service = New-Object Microsoft.Exchange.WebServices.Data.ExchangeService
+$service = New-Object Microsoft.Exchange.WebServices.Data.ExchangeService(
+    [Microsoft.Exchange.WebServices.Data.ExchangeVersion]::Exchange2016
+)
+$service.UseDefaultCredentials = $true
 
-	#$service = New-Object Microsoft.Exchange.WebServices.Data.ExchangeService
-	$service = New-Object Microsoft.Exchange.WebServices.Data.ExchangeService(
-		[Microsoft.Exchange.WebServices.Data.ExchangeVersion]::Exchange2016
-	)
-	$service.UseDefaultCredentials = $true
+#$cred=Get-Credential
+#$service.UseDefaultCredentials = $false
+#$service.Credentials = New-Object System.Net.NetworkCredential(
+#    $cred.UserName,
+#    $cred.GetNetworkCredential().Password
+#)
 
-	#$cred=Get-Credential
-	#$service.UseDefaultCredentials = $false
-	#$service.Credentials = New-Object System.Net.NetworkCredential(
-	#    $cred.UserName,
-	#    $cred.GetNetworkCredential().Password
-	#)
+$service.Url = "https://$server/EWS/Exchange.asmx"
+#impersonation
+$service.ImpersonatedUserId = New-Object Microsoft.Exchange.WebServices.Data.ImpersonatedUserId(
+    [Microsoft.Exchange.WebServices.Data.ConnectingIdType]::SmtpAddress,
+    $targetMailbox
+)
 
-	$service.Url = "https://$server/EWS/Exchange.asmx"
-	#impersonation
-	$service.ImpersonatedUserId = New-Object Microsoft.Exchange.WebServices.Data.ImpersonatedUserId(
-		[Microsoft.Exchange.WebServices.Data.ConnectingIdType]::SmtpAddress,
-		$targetMailbox
-	)
+$propertySet = New-Object Microsoft.Exchange.WebServices.Data.PropertySet(
+    [Microsoft.Exchange.WebServices.Data.BasePropertySet]::FirstClassProperties
+)
+$propertySet.RequestedBodyType = [Microsoft.Exchange.WebServices.Data.BodyType]::Text
 
-	$propertySet = New-Object Microsoft.Exchange.WebServices.Data.PropertySet(
-		[Microsoft.Exchange.WebServices.Data.BasePropertySet]::FirstClassProperties
-	)
-	$propertySet.RequestedBodyType = [Microsoft.Exchange.WebServices.Data.BodyType]::Text
+$mailbox    = New-Object Microsoft.Exchange.WebServices.Data.Mailbox($targetMailbox)
+$calendarId = New-Object Microsoft.Exchange.WebServices.Data.FolderId(
+    [Microsoft.Exchange.WebServices.Data.WellKnownFolderName]::Calendar,
+    $mailbox
+)
 
-	$mailbox    = New-Object Microsoft.Exchange.WebServices.Data.Mailbox($targetMailbox)
-	$calendarId = New-Object Microsoft.Exchange.WebServices.Data.FolderId(
-		[Microsoft.Exchange.WebServices.Data.WellKnownFolderName]::Calendar,
-		$mailbox
-	)
+#filters
+$filterClass = New-Object Microsoft.Exchange.WebServices.Data.SearchFilter+ContainsSubstring(
+    [Microsoft.Exchange.WebServices.Data.ItemSchema]::ItemClass,
+    "IPM.Schedule.Meeting.Request"
+)
 
-	#filters
-	$filterClass = New-Object Microsoft.Exchange.WebServices.Data.SearchFilter+ContainsSubstring(
-		[Microsoft.Exchange.WebServices.Data.ItemSchema]::ItemClass,
-		"IPM.Schedule.Meeting.Request"
-	)
+$filterStart = New-Object Microsoft.Exchange.WebServices.Data.SearchFilter+IsGreaterThanOrEqualTo(
+[Microsoft.Exchange.WebServices.Data.AppointmentSchema]::Start,
+$startDate
+)
 
-	$filterStart = New-Object Microsoft.Exchange.WebServices.Data.SearchFilter+IsGreaterThanOrEqualTo(
-	[Microsoft.Exchange.WebServices.Data.AppointmentSchema]::Start,
-	$startDate
-	)
+$filterEnd = New-Object Microsoft.Exchange.WebServices.Data.SearchFilter+IsLessThanOrEqualTo(
+[Microsoft.Exchange.WebServices.Data.AppointmentSchema]::Start,
+$endDate
+)
 
-	$filterEnd = New-Object Microsoft.Exchange.WebServices.Data.SearchFilter+IsLessThanOrEqualTo(
-	[Microsoft.Exchange.WebServices.Data.AppointmentSchema]::Start,
-	$endDate
-	)
+$calendarFilter = New-Object Microsoft.Exchange.WebServices.Data.SearchFilter+SearchFilterCollection(
+    [Microsoft.Exchange.WebServices.Data.LogicalOperator]::And,
+    @($filterStart, $filterEnd)
+)
 
-	$calendarFilter = New-Object Microsoft.Exchange.WebServices.Data.SearchFilter+SearchFilterCollection(
-		[Microsoft.Exchange.WebServices.Data.LogicalOperator]::And,
-		@($filterStart, $filterEnd)
-	)
-
-	$meetingFilter = New-Object Microsoft.Exchange.WebServices.Data.SearchFilter+SearchFilterCollection(
-		[Microsoft.Exchange.WebServices.Data.LogicalOperator]::And,
-		@($filterClass, $filterStart, $filterEnd)
-	)
+$meetingFilter = New-Object Microsoft.Exchange.WebServices.Data.SearchFilter+SearchFilterCollection(
+    [Microsoft.Exchange.WebServices.Data.LogicalOperator]::And,
+    @($filterClass, $filterStart, $filterEnd)
+)
 
 
-	#allCalendaritems
-	$calendarItems = Get-AllItemsFromFolder -FolderId $calendarId -filter $calendarFilter |
-		Where-Object { $_ -is [Microsoft.Exchange.WebServices.Data.Item] }
+#allCalendaritems
+$calendarItems = Get-AllItemsFromFolder -FolderId $calendarId -filter $calendarFilter -StartDate $startDate -EndDate $endDate |
+    Where-Object { $_ -is [Microsoft.Exchange.WebServices.Data.Item] }
 
-	#allFolders
-	$folderView = New-Object Microsoft.Exchange.WebServices.Data.FolderView(100)
-	$folderView.Traversal = [Microsoft.Exchange.WebServices.Data.FolderTraversal]::Deep
-	$rootId = New-Object Microsoft.Exchange.WebServices.Data.FolderId(
-		[Microsoft.Exchange.WebServices.Data.WellKnownFolderName]::MsgFolderRoot,
-		$mailbox
-	)
-	$allFolders = $service.FindFolders($rootId, $folderView).Folders
+#allFolders
+$folderView = New-Object Microsoft.Exchange.WebServices.Data.FolderView(100)
+$folderView.Traversal = [Microsoft.Exchange.WebServices.Data.FolderTraversal]::Deep
+$rootId = New-Object Microsoft.Exchange.WebServices.Data.FolderId(
+    [Microsoft.Exchange.WebServices.Data.WellKnownFolderName]::MsgFolderRoot,
+    $mailbox
+)
+$allFolders = $service.FindFolders($rootId, $folderView).Folders
 
-	#allInvitations
-	$inviteItems = @()
-	foreach ($folder in $allFolders) {
-		try {
-			$items = Get-AllItemsFromFolder -FolderId $folder.Id -Filter $meetingFilter
-			$inviteItems += $items | Where-Object { $_ -is [Microsoft.Exchange.WebServices.Data.Item] }
-		} catch {
-			Write-Warning "Ошибка при обходе папки '$($folder.DisplayName)': $_"
-		}
-	}
+#allInvitations
+$inviteItems = @()
+foreach ($folder in $allFolders) {
+    try {
+        $items = Get-AllItemsFromFolder -FolderId $folder.Id -Filter $meetingFilter -StartDate $startDate -EndDate $endDate
+        $inviteItems += $items | Where-Object { $_ -is [Microsoft.Exchange.WebServices.Data.Item] }
+    } catch {
+        Write-Warning "Ошибка при обходе папки '$($folder.DisplayName)': $_"
+    }
+}
 
 
-	$calendarUids = $calendarItems | ForEach-Object { $_.ICalUid }
-	$inviteItems  = $inviteItems | Where-Object { $calendarUids -notcontains $_.ICalUid } | Group-Object -Property ICalUid | ForEach-Object { $_.Group[0] }
+$calendarUids = $calendarItems | ForEach-Object { $_.ICalUid }
+$inviteItems  = $inviteItems | Where-Object { $calendarUids -notcontains $_.ICalUid } | Group-Object -Property ICalUid | ForEach-Object { $_.Group[0] }
 
-	$results = @()
-	$results += $calendarItems | ForEach-Object { Create-MeetingObject -Type 'Appointment' -Item $_ -regex $regex}
-	$results += $inviteItems   | ForEach-Object { Create-MeetingObject -Type 'Invitation' -Item $_ -regex $regex}
+
+$results += $calendarItems | ForEach-Object { Create-MeetingObject -Type 'Appointment' -Item $_ -regex $regex}
+$results += $inviteItems   | ForEach-Object { Create-MeetingObject -Type 'Invitation' -Item $_ -regex $regex}
 } else {
-	write-host "$user mailbox not found"
+write-host "$user mailbox not found"
 }
 }
 
 #$results
-$results | Export-Csv -Path "all_calendar_items.csv" -NoTypeInformation -Encoding UTF8
+$results | Export-Csv -Path "meetings.csv"  -NoTypeInformation -Encoding UTF8
