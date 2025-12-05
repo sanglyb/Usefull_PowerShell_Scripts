@@ -13,6 +13,7 @@ function Get-AllItemsFromFolder {
     $offset = 0
     $pageSize = 100
     $moreItems = $true
+	$currentStart = $StartDate
 	
     if ($FolderId.FolderName -eq [Microsoft.Exchange.WebServices.Data.WellKnownFolderName]::Calendar) {
 		$interval = 14 
