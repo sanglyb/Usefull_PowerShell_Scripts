@@ -1,6 +1,6 @@
 # Calendar Tools for Exchange (EWS)
 
-This repository contains two PowerShell scripts designed to analyze and maintain calendar items in Microsoft Exchange (Exchange 2016 / Exchange SE / Exchange Online via EWS API).
+This folder contains two PowerShell scripts designed to analyze and maintain calendar items in Microsoft Exchange (Exchange 2016 / Exchange SE / Exchange Online via EWS API).
 
 ---
 
@@ -57,12 +57,14 @@ A universal tool for cleaning calendar attachments, intended for large-scale cle
 #### **Usage**
 **Report only:**
 ```powershell
-.emove_attachements.ps1 -Mailbox user@example.com -EwsUrl https://mail.example.com/EWS/Exchange.asmx -Report
+.
+emove_attachements.ps1 -Mailbox user@example.com -EwsUrl https://mail.example.com/EWS/Exchange.asmx -Report
 ```
 
 **Clean attachments:**
 ```powershell
-.emove_attachements.ps1 -Mailbox user@example.com -EwsUrl https://mail.example.com/EWS/Exchange.asmx
+.
+emove_attachements.ps1 -Mailbox user@example.com -EwsUrl https://mail.example.com/EWS/Exchange.asmx
 ```
 
 #### **Output**
